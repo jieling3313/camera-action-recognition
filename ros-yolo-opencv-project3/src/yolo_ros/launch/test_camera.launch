@@ -1,0 +1,17 @@
+<launch>
+  <node pkg="realsense2_camera" type="realsense2_camera" name="camera" output="screen">
+    <param name="enable_depth"      value="false"/>
+    <param name="enable_infra1"     value="false"/>
+    <param name="enable_infra2"     value="false"/>
+    <param name="enable_fisheye"    value="false"/>
+    <param name="enable_gyro"       value="false"/>
+    <param name="enable_accel"      value="false"/>
+    <param name="enable_pointcloud" value="false"/>
+    <param name="align_depth"       value="false"/>
+
+    <param name="enable_color"      value="true"/>
+    <param name="color_width"       value="640"/>
+    <param name="color_height"      value="480"/>
+    <param name="color_fps"         value="15"/>
+  </node>
+</launch>

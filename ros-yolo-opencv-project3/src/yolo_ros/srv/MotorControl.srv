@@ -1,0 +1,9 @@
+# Request
+string command        # "move", "home", "enable", "disable"
+int32 steps          # 步數 (正=順時針, 負=逆時針)
+float32 speed        # 速度 (steps/sec), 0=使用預設值
+---
+# Response
+bool success
+string message
+int32 current_position  # 當前位置 (相對於歸零點的步數)

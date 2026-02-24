@@ -1,0 +1,102 @@
+<launch>
+  <!--
+  完整系統啟動檔案 - 包含 3 個視窗
+
+  視窗 1: 原始 D435i 影像 (Raw Camera Feed)
+  視窗 2: MediaPipe 骨架處理 (Skeleton Processing)
+  視窗 3: 模型辨識結果 (Recognition Results)
+
+  啟動指令：
+    roslaunch yolo_ros qt_gui_full_system.launch
+
+  注意：
+  - 辨識視窗會在啟動時打開，但顯示 "No actions loaded"
+  - 請在 Page 2 選定動作後，系統會自動更新辨識結果
+  -->
+
+  <!-- ========================================== -->
+  <!-- 1. RealSense D435i 相機 -->
+  <!-- ========================================== -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="align_depth" value="false"/>
+    <arg name="enable_depth" value="false"/>
+    <arg name="enable_infra" value="false"/>
+    <arg name="enable_color" value="true"/>
+    <arg name="color_width" value="640"/>
+    <arg name="color_height" value="480"/>
+    <arg name="color_fps" value="30"/>
+  </include>
+
+  <!-- ========================================== -->
+  <!-- 2. Camera Display Node (MediaPipe 骨架處理) -->
+  <!-- ========================================== -->
+  <node name="camera_display_node"
+        pkg="yolo_ros"
+        type="camera_display_node.py"
+        output="screen"
+        launch-prefix="python3.10">
+    <remap from="/camera/color/image_raw" to="/camera/color/image_raw"/>
+    <remap from="/camera/skeleton_image" to="/camera/skeleton_image"/>
+  </node>
+
+  <!-- ========================================== -->
+  <!-- 3. Recognition Display Node V2 (雙模式辨識) -->
+  <!-- 支援：                                       -->
+  <!-- - One-Shot Learning (Page 2 自訂動作)       -->
+  <!-- - NTU RGB+D 60 類別 (預訓練分類)            -->
+  <!-- ========================================== -->
+  <node name="recognition_display_node_v2"
+        pkg="yolo_ros"
+        type="recognition_display_node_v2.py"
+        output="screen"
+        launch-prefix="python3.10">
+    <remap from="/camera/color/image_raw" to="/camera/color/image_raw"/>
+    <param name="display_window" value="true"/>
+  </node>
+
+  <!-- ========================================== -->
+  <!-- 4. Image Viewers -->
+  <!-- ========================================== -->
+
+  <!-- 視窗 1: 原始 D435i 影像 -->
+  <node name="image_view_raw"
+        pkg="image_view"
+        type="image_view"
+        respawn="false">
+    <remap from="image" to="/camera/color/image_raw"/>
+    <param name="autosize" value="true"/>
+    <param name="window_name" value="D435i Raw Camera"/>
+  </node>
+
+  <!-- 視窗 2: MediaPipe 骨架影像 -->
+  <node name="image_view_skeleton"
+        pkg="image_view"
+        type="image_view"
+        respawn="false">
+    <remap from="image" to="/camera/skeleton_image"/>
+    <param name="autosize" value="true"/>
+    <param name="window_name" value="MediaPipe Skeleton"/>
+  </node>
+
+  <!-- 視窗 3: 辨識結果影像 -->
+  <node name="image_view_recognition"
+        pkg="image_view"
+        type="image_view"
+        respawn="false">
+    <remap from="image" to="/recognition_display/output_image"/>
+    <param name="autosize" value="true"/>
+    <param name="window_name" value="Recognition Results"/>
+  </node>
+
+  <!-- ========================================== -->
+  <!-- 5. QT GUI 介面 -->
+  <!-- ========================================== -->
+  <node name="action_recognition_gui"
+        pkg="yolo_ros"
+        type="qt_gui_main.py"
+        output="screen"
+        launch-prefix="python3.10">
+    <param name="enable_page3_auto_recognition" value="true"/>
+  </node>
+
+</launch>

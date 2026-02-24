@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Arguments -->
+    <arg name="camera" default="true" doc="Launch RealSense camera"/>
+    <arg name="buffer_size" default="64" doc="Number of frames to buffer"/>
+    <arg name="recognition_interval" default="30" doc="Frames between recognition"/>
+    <arg name="confidence_threshold" default="0.5" doc="Pose detection confidence"/>
+    <arg name="pose_model" default="yolov8m-pose.pt" doc="YOLOv8-Pose model"/>
+    <arg name="device" default="cpu" doc="Device: cpu or cuda"/>
+    <arg name="visualize" default="true" doc="Show visualization"/>
+
+    <!-- Launch RealSense Camera -->
+    <group if="$(arg camera)">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="align_depth" value="true"/>
+            <arg name="color_width" value="640"/>
+            <arg name="color_height" value="480"/>
+            <arg name="color_fps" value="15"/>
+            <arg name="enable_pointcloud" value="false"/>
+        </include>
+    </group>
+
+    <!-- One-Shot Action Recognition Node -->
+    <node name="one_shot_action_node" pkg="yolo_ros" type="one_shot_action_node.py"
+          output="screen" respawn="false">
+        <param name="buffer_size" value="$(arg buffer_size)"/>
+        <param name="recognition_interval" value="$(arg recognition_interval)"/>
+        <param name="confidence_threshold" value="$(arg confidence_threshold)"/>
+        <param name="pose_model" value="$(arg pose_model)"/>
+        <param name="device" value="$(arg device)"/>
+        <param name="support_set_dir" value="$(find yolo_ros)/support_sets"/>
+    </node>
+
+    <!-- Visualization -->
+    <group if="$(arg visualize)">
+        <node name="image_view" pkg="rqt_image_view" type="rqt_image_view"
+              args="/action_recognition/annotated_image"/>
+    </group>
+</launch>

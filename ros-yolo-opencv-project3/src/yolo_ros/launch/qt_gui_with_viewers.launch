@@ -1,0 +1,49 @@
+<!--
+  One-Shot Action Recognition GUI with Image Viewers
+  啟動 GUI、相機、骨架處理和所有影像視窗
+-->
+<launch>
+  <!-- ===== RealSense D435i Camera ===== -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="align_depth" value="true"/>
+    <arg name="enable_pointcloud" value="false"/>
+  </include>
+
+  <!-- ===== Camera Display Node (MediaPipe Skeleton Processing) ===== -->
+  <node name="camera_display_node" pkg="yolo_ros" type="camera_display_node.py" output="screen" launch-prefix="python3.10">
+    <env name="DISPLAY" value="$(optenv DISPLAY :0)"/>
+  </node>
+
+  <!-- ===== Image Viewers ===== -->
+  <!-- Raw Camera Feed Viewer -->
+  <node name="image_view_raw" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/color/image_raw"/>
+    <param name="autosize" value="true"/>
+  </node>
+
+  <!-- Skeleton Image Viewer -->
+  <node name="image_view_skeleton" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/skeleton_image"/>
+    <param name="autosize" value="true"/>
+  </node>
+
+  <!-- Recognition Result Viewer (TODO: 當有辨識結果 topic 時啟用) -->
+  <!--
+  <node name="image_view_recognition" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/recognition/result_image"/>
+    <param name="autosize" value="true"/>
+  </node>
+  -->
+
+  <!-- ===== QT GUI ===== -->
+  <node name="action_recognition_gui" pkg="yolo_ros" type="qt_gui_main.py" output="screen" launch-prefix="python3.10">
+    <env name="QT_QPA_PLATFORM_PLUGIN_PATH" value="/usr/lib/x86_64-linux-gnu/qt5/plugins"/>
+    <env name="DISPLAY" value="$(optenv DISPLAY :0)"/>
+
+    <!-- Parameters -->
+    <param name="actionset_dir" value="$(find yolo_ros)/actionset"/>
+    <param name="checkpoint_dir" value="$(find yolo_ros)/checkpoints"/>
+    <param name="camera_topic" value="/camera/color/image_raw"/>
+  </node>
+
+</launch>
