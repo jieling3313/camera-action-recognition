@@ -1,0 +1,55 @@
+<launch>
+    <!--
+    Camera Tracking System Launch File
+    Integrates D435i camera, YOLO detection, and Arduino stepper motor control
+    -->
+
+    <!-- Arduino Serial Port -->
+    <arg name="arduino_port" default="/dev/ttyACM0" />
+    <arg name="arduino_baud" default="57600" />
+
+    <!-- Tracking Parameters -->
+    <arg name="center_deadzone" default="50" />      <!-- pixels -->
+    <arg name="max_steps_per_update" default="100" />
+    <arg name="pixels_per_step" default="1.5" />     <!-- Calibration parameter -->
+
+    <!-- PID Parameters -->
+    <arg name="pid_kp" default="2.0" />
+    <arg name="pid_ki" default="0.3" />
+    <arg name="pid_kd" default="0.1" />
+
+    <!-- YOLO Model Path -->
+    <arg name="model_path" default="yolov8n.pt" />
+
+    <!-- RealSense D435i Camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true" />
+        <arg name="enable_pointcloud" value="false" />
+    </include>
+
+    <!-- Arduino Stepper Control (rosserial) -->
+    <node pkg="rosserial_python" type="serial_node.py" name="arduino_stepper_serial" output="screen">
+        <param name="port" value="$(arg arduino_port)" />
+        <param name="baud" value="$(arg arduino_baud)" />
+    </node>
+
+    <!-- Camera Tracker Node -->
+    <node pkg="yolo_ros" type="camera_tracker_node.py" name="camera_tracker_node" output="screen">
+        <param name="center_deadzone" value="$(arg center_deadzone)" />
+        <param name="max_steps_per_update" value="$(arg max_steps_per_update)" />
+        <param name="pixels_per_step" value="$(arg pixels_per_step)" />
+        <param name="pid_kp" value="$(arg pid_kp)" />
+        <param name="pid_ki" value="$(arg pid_ki)" />
+        <param name="pid_kd" value="$(arg pid_kd)" />
+        <param name="model_path" value="$(arg model_path)" />
+    </node>
+
+    <!-- Image View (Optional - for debugging) -->
+    <!-- Uncomment to visualize tracking -->
+    <!--
+    <node pkg="image_view" type="image_view" name="tracking_viewer" output="screen">
+        <remap from="image" to="/tracking_annotated_image" />
+    </node>
+    -->
+
+</launch>

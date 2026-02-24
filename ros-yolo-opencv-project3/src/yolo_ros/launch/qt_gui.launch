@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- QT GUI Launch File for One-Shot Action Recognition -->
+
+    <!-- RealSense D435i Camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true"/>
+        <arg name="enable_pointcloud" value="false"/>
+        <arg name="enable_sync" value="true"/>
+    </include>
+
+    <!-- QT GUI Node -->
+    <node name="action_recognition_gui" pkg="yolo_ros" type="qt_gui_main.py" output="screen" launch-prefix="python3.10">
+        <param name="camera_topic" value="/camera/color/image_raw"/>
+        <param name="actionset_dir" value="$(find yolo_ros)/actionset"/>
+        <param name="checkpoint_dir" value="$(find yolo_ros)/scripts/checkpoints"/>
+
+        <!-- Qt Environment Variables -->
+        <env name="QT_QPA_PLATFORM_PLUGIN_PATH" value="/usr/lib/x86_64-linux-gnu/qt5/plugins"/>
+        <env name="DISPLAY" value="$(optenv DISPLAY :0)"/>
+    </node>
+
+</launch>

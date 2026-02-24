@@ -1,0 +1,25 @@
+<!--
+  Camera Image Viewers Only
+  只啟動影像視窗（需要相機和 camera_display_node 已經在運行）
+-->
+<launch>
+  <!-- Raw Camera Feed Viewer -->
+  <node name="image_view_raw" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/color/image_raw"/>
+    <param name="autosize" value="true"/>
+  </node>
+
+  <!-- Skeleton Image Viewer -->
+  <node name="image_view_skeleton" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/camera/skeleton_image"/>
+    <param name="autosize" value="true"/>
+  </node>
+
+  <!-- Recognition Result Viewer (TODO: 當有辨識結果 topic 時啟用) -->
+  <!--
+  <node name="image_view_recognition" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/recognition/result_image"/>
+    <param name="autosize" value="true"/>
+  </node>
+  -->
+</launch>

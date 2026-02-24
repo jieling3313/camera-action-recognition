@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# ROS
+devel/
+build/
+bin/
+lib/
+msg_gen/
+srv_gen/
+*.log
+
+# Dataset (large files)
+**/nturgbd_skeletons*/
+**/ntu_rgb+d*/
+*.skeleton
+
+# Model weights (large files)
+*.pt
+*.pth
+*.onnx
+*.weights
+checkpoints/
+
+# Test outputs
+skeleton_output/
+test_picture/
+*.npy
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude settings (exclude all Claude data)
+.claude/
+
+# Training logs
+*.log
+nohup.out
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,18 @@
+<launch>
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+      <arg name="align_depth"       value="true"/>
+      
+      <arg name="enable_pointcloud" value="false"/>
+      <arg name="color_width"       value="640"/>
+      <arg name="color_height"      value="480"/>
+      <arg name="color_fps"         value="15"/>
+      <arg name="unite_imu_method"  value="linear_interpolation"/>
+    </include>
+
+    <node name="object_position_estimator" pkg="yolo_ros" type="get_object_position.py" output="screen" />
+
+    <node name="rqt_image_view" pkg="rqt_image_view" type="rqt_image_view">
+        <remap from="image" to="/yolo_annotated_image" />
+    </node>
+
+</launch>
