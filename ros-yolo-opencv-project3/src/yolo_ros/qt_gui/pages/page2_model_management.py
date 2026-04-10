@@ -143,6 +143,7 @@ class Page2ModelManagement(QWidget):
         self.actionset_list = QListWidget()
         self.actionset_list.setFont(QFont("Arial", 10))
         self.actionset_list.setSelectionMode(QListWidget.MultiSelection)
+        self.actionset_list.itemClicked.connect(self._on_actionset_item_clicked)
         layout.addWidget(self.actionset_list)
 
         # 新增動作名稱輸入
@@ -158,6 +159,42 @@ class Page2ModelManagement(QWidget):
         self.btn_add_action = QPushButton("Add Action")
         self.btn_add_action.clicked.connect(self._add_custom_action)
         layout.addWidget(self.btn_add_action)
+
+        # ========== 觸發手勢設定 ==========
+        trigger_label = QLabel("Trigger Gesture Mode:")
+        trigger_label.setFont(QFont("Arial", 10, QFont.Bold))
+        layout.addWidget(trigger_label)
+
+        # 觸發模式開關
+        self.trigger_checkbox = QCheckBox("Enable Trigger Mode")
+        self.trigger_checkbox.setChecked(False)
+        self.trigger_checkbox.stateChanged.connect(self._on_trigger_mode_changed)
+        layout.addWidget(self.trigger_checkbox)
+
+        # 觸發動作選擇提示
+        self.trigger_info_label = QLabel("Select an action from 'Current Action List' as trigger")
+        self.trigger_info_label.setFont(QFont("Arial", 9))
+        self.trigger_info_label.setStyleSheet("color: gray;")
+        layout.addWidget(self.trigger_info_label)
+
+        # 設為觸發動作按鈕
+        self.btn_set_trigger = QPushButton("Set as Trigger Action")
+        self.btn_set_trigger.setEnabled(False)
+        self.btn_set_trigger.clicked.connect(self._set_trigger_action)
+        layout.addWidget(self.btn_set_trigger)
+
+        # 當前觸發動作顯示
+        self.current_trigger_label = QLabel("Current Trigger: None")
+        self.current_trigger_label.setFont(QFont("Arial", 9))
+        self.current_trigger_label.setStyleSheet("color: blue;")
+        layout.addWidget(self.current_trigger_label)
+
+        # 觸發動作發布者
+        self.trigger_pub = rospy.Publisher(
+            '/recognition_display/set_trigger',
+            String,
+            queue_size=1
+        )
 
         group_box.setLayout(layout)
         parent_layout.addWidget(group_box)
@@ -281,22 +318,37 @@ class Page2ModelManagement(QWidget):
             # 嘗試從 actionset 載入
             action_path = os.path.join(self.actionset_dir, action_name)
 
-            # 優先載入 COCO 17 格式
-            skeleton_file_coco = os.path.join(action_path, f"{action_name}_skeleton_sequence_coco17.npy")
-            skeleton_file_original = os.path.join(action_path, f"{action_name}_skeleton_sequence.npy")
+            # MediaPipe 33 格式骨架序列
+            skeleton_file_mp33 = os.path.join(action_path, f"{action_name}_skeleton_sequence.npy")
+            # 單幀骨架檔案
+            skeleton_files_single = glob.glob(os.path.join(action_path, f"{action_name}_*_skeleton.npy"))
 
-            if os.path.exists(skeleton_file_coco):
-                skeleton_seq = np.load(skeleton_file_coco)
-                self.skeleton_preview.load_skeleton_sequence(skeleton_seq)
-                rospy.loginfo(f"Loaded COCO17 format for preview: {skeleton_file_coco}")
-            elif os.path.exists(skeleton_file_original):
-                skeleton_seq = np.load(skeleton_file_original)
-                # 檢查格式是否正確
-                if skeleton_seq.shape[-2:] == (17, 3):
+            if os.path.exists(skeleton_file_mp33):
+                skeleton_seq = np.load(skeleton_file_mp33)
+                # MediaPipe 33 點格式
+                if skeleton_seq.shape[-2] == 33 and skeleton_seq.shape[-1] >= 3:
                     self.skeleton_preview.load_skeleton_sequence(skeleton_seq)
-                    rospy.loginfo(f"Loaded original COCO17 format for preview: {skeleton_file_original}")
+                    rospy.loginfo(f"Loaded MediaPipe33 skeleton: {skeleton_file_mp33} - Shape: {skeleton_seq.shape}")
                 else:
-                    rospy.logwarn(f"Cannot preview {action_name}: Invalid format {skeleton_seq.shape}. Expected (..., 17, 3)")
+                    rospy.logwarn(f"Cannot preview {action_name}: Invalid format {skeleton_seq.shape}. Expected (..., 33, 3+)")
+            elif skeleton_files_single:
+                # 載入單幀骨架並堆疊
+                frames = []
+                for f in sorted(skeleton_files_single):
+                    try:
+                        frame = np.load(f)
+                        if frame.shape[-2] == 33:
+                            frames.append(frame)
+                        else:
+                            rospy.logwarn(f"Skipping {f}: Not MediaPipe33 format")
+                    except Exception as e:
+                        rospy.logwarn(f"Failed to load {f}: {e}")
+                if frames:
+                    skeleton_seq = np.stack(frames, axis=0)
+                    self.skeleton_preview.load_skeleton_sequence(skeleton_seq)
+                    rospy.loginfo(f"Loaded {len(frames)} single frames for preview - Shape: {skeleton_seq.shape}")
+                else:
+                    rospy.logwarn(f"Cannot preview {action_name}: No valid MediaPipe33 skeleton frames found")
             else:
                 rospy.logwarn(f"Cannot preview {action_name}: No skeleton sequence file found")
 
@@ -319,29 +371,45 @@ class Page2ModelManagement(QWidget):
             action_dir = item.text()
             action_path = os.path.join(self.actionset_dir, action_dir)
 
-            # 優先載入 COCO 17 格式的骨架序列
-            skeleton_file_coco = os.path.join(action_path, f"{action_dir}_skeleton_sequence_coco17.npy")
-            skeleton_file_original = os.path.join(action_path, f"{action_dir}_skeleton_sequence.npy")
+            # MediaPipe 33 格式的骨架序列
+            skeleton_file_mp33 = os.path.join(action_path, f"{action_dir}_skeleton_sequence.npy")
+            # 單幀骨架檔案
+            skeleton_files_single = glob.glob(os.path.join(action_path, f"{action_dir}_*_skeleton.npy"))
 
-            if os.path.exists(skeleton_file_coco):
-                # 使用 COCO 17 關鍵點格式
-                skeleton_seq = np.load(skeleton_file_coco)
-                rospy.loginfo(f"Loaded COCO17 format: {skeleton_file_coco} - Shape: {skeleton_seq.shape}")
-                action_samples.append(skeleton_seq)
-            elif os.path.exists(skeleton_file_original):
-                # 原始格式 - 檢查是否為正確的形狀
-                skeleton_seq = np.load(skeleton_file_original)
-                if skeleton_seq.shape[-2] == 17 and skeleton_seq.shape[-1] == 3:
-                    # 已經是 COCO 17 格式
-                    rospy.loginfo(f"Loaded original COCO17: {skeleton_file_original} - Shape: {skeleton_seq.shape}")
+            if os.path.exists(skeleton_file_mp33):
+                skeleton_seq = np.load(skeleton_file_mp33)
+                # MediaPipe 33 點格式
+                if skeleton_seq.shape[-2] == 33 and skeleton_seq.shape[-1] >= 3:
+                    # 只取 x, y, z（前 3 個通道）
+                    skeleton_seq = skeleton_seq[..., :3]
+                    rospy.loginfo(f"Loaded MediaPipe33: {skeleton_file_mp33} - Shape: {skeleton_seq.shape}")
                     action_samples.append(skeleton_seq)
                 else:
-                    # 不是正確格式，警告用戶
-                    rospy.logwarn(f"Skipping {action_dir}: Invalid format {skeleton_seq.shape}. Expected (..., 17, 3)")
-                    rospy.logwarn(f"Please convert to COCO17 format using convert_mediapipe_to_coco.py")
+                    rospy.logwarn(f"Skipping {action_dir}: Invalid format {skeleton_seq.shape}. Expected (..., 33, 3+)")
+            elif skeleton_files_single:
+                # 載入單幀骨架並堆疊（適用於靜態姿勢）
+                frames = []
+                for f in sorted(skeleton_files_single):
+                    try:
+                        frame = np.load(f)
+                        if frame.shape[-2] == 33:
+                            frame = frame[..., :3]  # 只取 x, y, z
+                            frames.append(frame)
+                        else:
+                            rospy.logwarn(f"Skipping {f}: Not MediaPipe33 format")
+                    except Exception as e:
+                        rospy.logwarn(f"Failed to load {f}: {e}")
+                if frames:
+                    skeleton_seq = np.stack(frames, axis=0) if len(frames) > 1 else frames[0][np.newaxis, ...]
+                    rospy.loginfo(f"Loaded {len(frames)} single frames: {action_path} - Shape: {skeleton_seq.shape}")
+                    action_samples.append(skeleton_seq)
+                else:
+                    rospy.logwarn(f"Skipping {action_dir}: No valid MediaPipe33 skeleton frames found")
+            else:
+                rospy.logwarn(f"Skipping {action_dir}: No skeleton files found")
 
         if len(action_samples) == 0:
-            QMessageBox.warning(self, "Error", "No valid skeleton data found")
+            QMessageBox.warning(self, "Error", "No valid skeleton data found.\n\nPlease ensure actionset contains MediaPipe 33-point skeleton files.")
             return
 
         # 新增到模型
@@ -397,3 +465,85 @@ class Page2ModelManagement(QWidget):
         """處理 actionset 更新通知"""
         rospy.loginfo("Actionset updated, refreshing actionset list...")
         self._load_actionset_list()
+
+    def _on_actionset_item_clicked(self, item):
+        """actionset 項目點擊事件 - 預覽骨架動畫
+
+        當使用者點擊 actionset 列表中的項目時，
+        載入該動作的 .npy 骨架序列並在右側預覽區域播放動畫。
+        """
+        action_dir = item.text()
+        action_path = os.path.join(self.actionset_dir, action_dir)
+
+        # 尋找骨架序列檔案（優先找 MediaPipe 33 格式）
+        skeleton_file = None
+
+        # 方式 1: 直接找 *_skeleton_sequence.npy（排除 coco17 和 backup）
+        for f in os.listdir(action_path):
+            if f.endswith('skeleton_sequence.npy') and 'coco17' not in f and 'backup' not in f:
+                skeleton_file = os.path.join(action_path, f)
+                break
+
+        if skeleton_file and os.path.exists(skeleton_file):
+            try:
+                skeleton_seq = np.load(skeleton_file)
+
+                # 驗證是否為 MediaPipe 33 點格式
+                if len(skeleton_seq.shape) >= 2 and skeleton_seq.shape[-2] == 33:
+                    self.skeleton_preview.load_skeleton_sequence(skeleton_seq)
+                    # 自動開始播放
+                    self.skeleton_preview.play()
+                    rospy.loginfo(f"Preview actionset: {action_dir} - Shape: {skeleton_seq.shape}, Frames: {skeleton_seq.shape[0]}")
+                else:
+                    rospy.logwarn(f"Invalid skeleton format for {action_dir}: {skeleton_seq.shape}")
+                    self.skeleton_preview.setText(f"無法預覽: {action_dir}\n格式不符 (需要 33 關節點)")
+            except Exception as e:
+                rospy.logerr(f"Failed to load skeleton for {action_dir}: {e}")
+                self.skeleton_preview.setText(f"載入失敗: {action_dir}\n{str(e)}")
+        else:
+            rospy.logwarn(f"No skeleton file found for {action_dir}")
+            self.skeleton_preview.setText(f"找不到骨架檔案:\n{action_dir}")
+
+    def _on_trigger_mode_changed(self, state):
+        """觸發模式開關變更事件"""
+        enabled = (state == Qt.Checked)
+        self.btn_set_trigger.setEnabled(enabled)
+
+        if not enabled:
+            # 停用觸發模式
+            self.trigger_pub.publish(String(data="DISABLE"))
+            self.current_trigger_label.setText("Current Trigger: None (Disabled)")
+            self.current_trigger_label.setStyleSheet("color: gray;")
+            rospy.loginfo("Trigger mode disabled")
+        else:
+            self.current_trigger_label.setText("Current Trigger: None (Select an action)")
+            self.current_trigger_label.setStyleSheet("color: orange;")
+
+    def _set_trigger_action(self):
+        """將選中的動作設為觸發動作"""
+        selected_items = self.current_action_list.selectedItems()
+
+        if not selected_items:
+            QMessageBox.warning(self, "Error",
+                              "Please select an action from 'Current Action List' to set as trigger")
+            return
+
+        # 只取第一個選中的動作
+        action_name = selected_items[0].text()
+
+        # 發送觸發動作設定
+        self.trigger_pub.publish(String(data=action_name))
+
+        # 更新顯示
+        self.current_trigger_label.setText(f"Current Trigger: {action_name}")
+        self.current_trigger_label.setStyleSheet("color: green; font-weight: bold;")
+
+        rospy.loginfo(f"Set trigger action: {action_name}")
+
+        QMessageBox.information(self, "Trigger Mode",
+                               f"Trigger action set to: {action_name}\n\n"
+                               f"How to use:\n"
+                               f"1. Perform '{action_name}' gesture to START recording\n"
+                               f"2. Perform your command action (forward/stop/right/etc.)\n"
+                               f"3. Perform '{action_name}' gesture again to END\n"
+                               f"4. The most frequent action will be output as command")

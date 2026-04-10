@@ -1,18 +1,35 @@
 <launch>
   <!--
-  完整系統啟動檔案 - 包含 3 個視窗
+  完整系統啟動檔案 - 包含 4 個頁面的整合系統
 
-  視窗 1: 原始 D435i 影像 (Raw Camera Feed)
-  視窗 2: MediaPipe 骨架處理 (Skeleton Processing)
-  視窗 3: 模型辨識結果 (Recognition Results)
+  頁面功能:
+  - Page 1: Data Collection (資料收集)
+  - Page 2: Model Management (模型管理)
+  - Page 3: Live Recognition (即時辨識)
+  - Page 4: Body Tracking (人體追蹤 + 動作辨識)
+
+  視窗:
+  - 視窗 1: 原始 D435i 影像 (Raw Camera Feed)
+  - 視窗 2: MediaPipe 骨架處理 (Skeleton Processing)
+  - 視窗 3: 模型辨識結果 (Recognition Results)
 
   啟動指令：
     roslaunch yolo_ros qt_gui_full_system.launch
 
+  啟動包含馬達追蹤：
+    roslaunch yolo_ros qt_gui_full_system.launch enable_body_tracking:=true
+
   注意：
   - 辨識視窗會在啟動時打開，但顯示 "No actions loaded"
   - 請在 Page 2 選定動作後，系統會自動更新辨識結果
+  - Page 4 需要 Arduino 連接才能控制馬達
   -->
+
+  <!-- ============== Arguments ============== -->
+  <!-- Body Tracking Options -->
+  <arg name="enable_body_tracking" default="false" doc="Enable body tracking node and motor control"/>
+  <arg name="arduino_port" default="/dev/ttyACM0" doc="Arduino serial port"/>
+  <arg name="arduino_baud" default="57600" doc="Arduino baud rate"/>
 
   <!-- ========================================== -->
   <!-- 1. RealSense D435i 相機 -->
@@ -97,6 +114,47 @@
         output="screen"
         launch-prefix="python3.10">
     <param name="enable_page3_auto_recognition" value="true"/>
+  </node>
+
+  <!-- ========================================== -->
+  <!-- 6. Body Tracking System (Optional) -->
+  <!-- 當 enable_body_tracking:=true 時啟動 -->
+  <!-- ========================================== -->
+
+  <!-- Arduino Stepper Control (rosserial) -->
+  <node if="$(arg enable_body_tracking)"
+        pkg="rosserial_python"
+        type="serial_node.py"
+        name="arduino_stepper_serial"
+        output="screen">
+    <param name="port" value="$(arg arduino_port)" />
+    <param name="baud" value="$(arg arduino_baud)" />
+  </node>
+
+  <!-- Camera Tracker Node (YOLO body tracking + motor control) -->
+  <node if="$(arg enable_body_tracking)"
+        pkg="yolo_ros"
+        type="camera_tracker_node.py"
+        name="camera_tracker_node"
+        output="screen">
+    <!-- Tracking parameters -->
+    <param name="center_deadzone" value="50" />
+    <param name="max_steps_per_update" value="40" />
+    <param name="pixels_per_step" value="2.5" />
+    <!-- PID parameters -->
+    <param name="pid_kp" value="1.5" />
+    <param name="pid_ki" value="0.1" />
+    <param name="pid_kd" value="0.05" />
+    <!-- Patrol parameters -->
+    <param name="patrol_speed" value="36.0" />
+    <param name="steps_per_revolution" value="1600" />
+    <param name="no_person_timeout" value="3.0" />
+    <param name="person_confirm_timeout" value="1.0" />
+    <!-- YOLO model -->
+    <param name="model_path" value="yolov8n.pt" />
+    <!-- Frame skip: process every Nth frame to reduce GPU load -->
+    <!-- Allows MediaPipe recognition to run simultaneously -->
+    <param name="detection_frame_skip" value="3" />
   </node>
 
 </launch>

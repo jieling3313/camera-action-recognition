@@ -41,8 +41,9 @@ RUN git clone --depth 1 --branch ${REALSENSE_VERSION} https://github.com/IntelRe
     rm -rf /tmp/librealsense
 
 # 安裝 Python 依賴套件（使用 Python 3.10）
+# 注意: numpy 版本限制在後續步驟中設定，這裡先安裝 scipy
 RUN python3.10 -m pip install --no-cache-dir --upgrade pip && \
-    python3.10 -m pip install --no-cache-dir numpy scipy
+    python3.10 -m pip install --no-cache-dir scipy
 
 # 安裝 PyTorch 2.7.0 (Stable) 以支援 RTX 5080 (sm_120)
 # PyTorch 2.7.0 已支援 CUDA 12.8 和 Blackwell 架構 (sm_120)
@@ -57,8 +58,9 @@ RUN python3.10 -m pip install --no-cache-dir \
     "psutil>=5.9.0" "tqdm>=4.64.0" "pyyaml>=5.3.1" "requests>=2.23.0"
 
 # 安裝大型套件 (opencv, numpy, pandas, matplotlib, seaborn)
+# 注意: 必須使用 numpy<2.0 以兼容 ROS Noetic 的 cv_bridge (用 NumPy 1.x 編譯)
 RUN python3.10 -m pip install --default-timeout=1000 --no-cache-dir \
-    "opencv-python>=4.6.0" "numpy>=1.23.0" "pandas>=1.1.4" \
+    "opencv-python>=4.6.0" "numpy>=1.23.0,<2.0" "pandas>=1.1.4" \
     "matplotlib>=3.4.0" "seaborn>=0.11.0"
 
 # 安裝 ultralytics（如果 PyTorch 已存在，應該不會重新安裝）
@@ -69,6 +71,11 @@ RUN python3.10 -m pip install --no-cache-dir "pot>=0.9.6"
 
 # 安裝 MediaPipe 用於骨骼辨識
 RUN python3.10 -m pip install --no-cache-dir mediapipe
+
+# 安裝 ROS Python 套件 (讓 python3.10 可以使用 rospy)
+# 包含 rospkg, catkin_pkg 等必要套件
+RUN python3.10 -m pip install --no-cache-dir \
+    rospkg catkin_pkg netifaces defusedxml empy
 
 # 安裝 QT5 相關套件用於 GUI 開發
 RUN apt-get update && apt-get install -y --no-install-recommends \

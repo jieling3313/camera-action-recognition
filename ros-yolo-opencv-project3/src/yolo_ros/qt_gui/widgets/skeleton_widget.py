@@ -97,7 +97,7 @@ class SkeletonPreviewWidget(QLabel):
 
         Args:
             keypoints: numpy array, shape (33, 3) 或 (17, 3)
-                       格式：(x, y, confidence)
+                       格式：(x, y, confidence) 或 (x, y, z)
         """
         # 建立空白影像
         img_size = 400
@@ -108,22 +108,35 @@ class SkeletonPreviewWidget(QLabel):
             return
 
         # 正規化座標到影像大小
-        # 假設原始座標範圍 [0, 1]
         normalized_kp = keypoints[:, :2].copy()
 
-        # 找到座標範圍
+        # 找到座標範圍（支援負值座標，如 hip-centering 後的數據）
         min_x, min_y = normalized_kp.min(axis=0)
         max_x, max_y = normalized_kp.max(axis=0)
 
-        # 正規化並縮放
-        if max_x > min_x and max_y > min_y:
-            normalized_kp[:, 0] = (normalized_kp[:, 0] - min_x) / (max_x - min_x)
-            normalized_kp[:, 1] = (normalized_kp[:, 1] - min_y) / (max_y - min_y)
+        # 計算範圍
+        range_x = max_x - min_x
+        range_y = max_y - min_y
+
+        # 正規化並縮放（保持長寬比）
+        if range_x > 1e-6 and range_y > 1e-6:
+            # 使用較大的範圍來保持長寬比
+            max_range = max(range_x, range_y)
+
+            # 將座標移到正數範圍並正規化
+            normalized_kp[:, 0] = (normalized_kp[:, 0] - min_x) / max_range
+            normalized_kp[:, 1] = (normalized_kp[:, 1] - min_y) / max_range
 
             # 縮放到影像大小，留邊距
-            margin = 50
+            margin = 40
             scale = img_size - 2 * margin
             normalized_kp = normalized_kp * scale + margin
+
+            # 置中調整
+            center_offset_x = (scale - range_x / max_range * scale) / 2
+            center_offset_y = (scale - range_y / max_range * scale) / 2
+            normalized_kp[:, 0] += center_offset_x
+            normalized_kp[:, 1] += center_offset_y
 
         # 繪製骨架連接
         num_keypoints = len(keypoints)
@@ -136,6 +149,12 @@ class SkeletonPreviewWidget(QLabel):
         else:
             connections = []
 
+        # 判斷第三個通道是置信度還是 z 座標
+        # 如果值普遍在 0-1 之間且接近 1，可能是置信度
+        # 如果值範圍較大或包含負值，可能是 z 座標
+        third_channel = keypoints[:, 2]
+        is_confidence = np.all((third_channel >= 0) & (third_channel <= 1))
+
         for start_idx, end_idx in connections:
             if start_idx >= num_keypoints or end_idx >= num_keypoints:
                 continue
@@ -143,15 +162,30 @@ class SkeletonPreviewWidget(QLabel):
             start_point = tuple(normalized_kp[start_idx].astype(int))
             end_point = tuple(normalized_kp[end_idx].astype(int))
 
-            # 檢查置信度
-            if keypoints[start_idx, 2] > 0.5 and keypoints[end_idx, 2] > 0.5:
-                cv2.line(image, start_point, end_point, (0, 255, 0), 2)
+            # 檢查置信度（如果是置信度格式）或直接繪製（如果是 z 座標）
+            if is_confidence:
+                if keypoints[start_idx, 2] > 0.3 and keypoints[end_idx, 2] > 0.3:
+                    cv2.line(image, start_point, end_point, (0, 200, 0), 2)
+            else:
+                # z 座標格式，直接繪製所有連接
+                cv2.line(image, start_point, end_point, (0, 200, 0), 2)
 
         # 繪製關鍵點
         for i, kp in enumerate(normalized_kp):
-            if keypoints[i, 2] > 0.5:  # 置信度閾值
-                point = tuple(kp.astype(int))
+            point = tuple(kp.astype(int))
+            if is_confidence:
+                if keypoints[i, 2] > 0.3:
+                    cv2.circle(image, point, 4, (0, 0, 255), -1)
+            else:
+                # z 座標格式，繪製所有點
                 cv2.circle(image, point, 4, (0, 0, 255), -1)
+
+        # 顯示幀數資訊
+        if self.skeleton_sequence is not None:
+            total_frames = len(self.skeleton_sequence)
+            frame_text = f"Frame: {self.current_frame_index + 1}/{total_frames}"
+            cv2.putText(image, frame_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
+                       0.6, (100, 100, 100), 1, cv2.LINE_AA)
 
         self._display_image(image)
 

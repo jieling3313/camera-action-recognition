@@ -15,20 +15,26 @@ import numpy as np
 import rospy
 import sys
 
-# 新增 scripts 目錄到 Python 路徑
+# 新增 scripts/models 目錄到 Python 路徑
 scripts_path = "/root/catkin_ws/src/yolo_ros/scripts"
-if scripts_path not in sys.path:
-    sys.path.insert(0, scripts_path)
+models_path = os.path.join(scripts_path, "models")
+mediapipe33_path = os.path.join(models_path, "mediapipe33")
+common_path = os.path.join(models_path, "common")
 
-from skeleton_model import OneShotActionRecognition
+for path in [scripts_path, models_path, mediapipe33_path, common_path]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+# 使用 MediaPipe 33-point 模型
+from skeleton_model_mediapipe33 import OneShotActionRecognitionMediaPipe as OneShotActionRecognition
 
 
 class ModelManager:
     """模型管理器"""
 
     def __init__(self):
-        # 模型檔案目錄
-        self.checkpoint_dir = "/root/catkin_ws/src/yolo_ros/scripts/checkpoints"
+        # 模型檔案目錄 (使用 MediaPipe 33-point 模型的 checkpoints)
+        self.checkpoint_dir = "/root/catkin_ws/src/yolo_ros/scripts/models/mediapipe33/checkpoints_mediapipe33"
 
         # 當前載入的模型
         self.model = None
@@ -42,6 +48,49 @@ class ModelManager:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         rospy.loginfo(f"Model Manager initialized (device: {self.device})")
+
+    def _normalize_skeleton_data(self, skeleton_data):
+        """正規化骨架數據，確保座標在合理範圍內
+
+        MediaPipe 的正規化座標通常在 0-1 範圍，但當身體部分超出畫面時
+        可以超過 1 或小於 0（例如 y 可能到 2-3）。
+
+        真正的像素座標會是 0-640 和 0-480 的範圍。
+
+        Args:
+            skeleton_data: (T, V, C) 骨架序列
+
+        Returns:
+            骨架序列（不做任何正規化，因為數據應該已經是正規化座標）
+        """
+        skeleton_data = np.array(skeleton_data, dtype=np.float32)
+
+        # 檢查 x, y 座標的範圍
+        x_coords = skeleton_data[..., 0]
+        y_coords = skeleton_data[..., 1]
+
+        x_max = np.max(x_coords)
+        y_max = np.max(y_coords)
+        x_min = np.min(x_coords)
+        y_min = np.min(y_coords)
+
+        rospy.loginfo(f"Skeleton data range: x=[{x_min:.2f}, {x_max:.2f}], y=[{y_min:.2f}, {y_max:.2f}]")
+
+        # 只有當 x 座標明顯超過 10（不可能是正規化座標）時才認為是像素座標
+        # MediaPipe 的正規化座標即使超出畫面也不會超過 3-4
+        if x_max > 10:
+            rospy.logwarn(f"Detected pixel coordinates (max x={x_max:.1f}). "
+                         f"Auto-normalizing to 0-1 range.")
+
+            # 使用 640x480 作為參考解析度
+            skeleton_data[..., 0] = skeleton_data[..., 0] / 640.0
+            skeleton_data[..., 1] = skeleton_data[..., 1] / 480.0
+
+            rospy.loginfo(f"Normalized: x/=640, y/=480")
+        else:
+            rospy.loginfo("Data appears to be normalized coordinates (no conversion needed)")
+
+        return skeleton_data
 
     def get_available_models(self):
         """取得可用的模型列表
@@ -147,6 +196,32 @@ class ModelManager:
         """取得目前支援的動作列表"""
         return self.action_list.copy()
 
+    def _sample_to_fixed_length(self, sample, target_length=32):
+        """將骨架序列調整為固定長度
+
+        這確保與 recognition_display_node_v2.py 的輸入格式一致。
+
+        Args:
+            sample: (T, V, C) 骨架序列
+            target_length: 目標長度（預設 32，與即時辨識一致）
+
+        Returns:
+            調整後的骨架序列 (target_length, V, C)
+        """
+        T = sample.shape[0]
+
+        if T == target_length:
+            return sample
+        elif T > target_length:
+            # 如果序列太長，均勻取樣
+            indices = np.linspace(0, T - 1, target_length, dtype=int)
+            return sample[indices]
+        else:
+            # 如果序列太短，重複最後一幀來填充
+            pad_length = target_length - T
+            padding = np.repeat(sample[-1:], pad_length, axis=0)
+            return np.concatenate([sample, padding], axis=0)
+
     def add_custom_action(self, action_name, skeleton_samples):
         """新增自訂動作
 
@@ -167,12 +242,30 @@ class ModelManager:
             features = []
 
             for sample in skeleton_samples:
+                # 檢查並正規化數據（確保座標在 0-1 範圍內）
+                sample = self._normalize_skeleton_data(sample)
+
+                # 調整為固定長度（64 幀，與即時辨識一致）
+                sample = self._sample_to_fixed_length(sample, target_length=32)
+                rospy.loginfo(f"Sample adjusted to shape: {sample.shape}")
+
+                # 關鍵步驟：髖部中心化（與訓練時的預處理一致）
+                # MediaPipe: 23=左髖, 24=右髖
+                hip_center = (sample[:, 23, :2] + sample[:, 24, :2]) / 2
+                sample[:, :, :2] = sample[:, :, :2] - hip_center[:, np.newaxis, :]
+                rospy.loginfo(f"Applied hip-centering normalization")
+
                 # 轉換為 tensor
                 sample_tensor = torch.FloatTensor(sample).unsqueeze(0).to(self.device)
 
                 with torch.no_grad():
                     feature = self.model.embedding(sample_tensor)  # (1, 256)
                     features.append(feature.cpu().numpy()[0])
+
+                # 除錯：顯示特徵統計
+                rospy.loginfo(f"Feature stats: mean={feature.cpu().numpy()[0].mean():.4f}, "
+                             f"std={feature.cpu().numpy()[0].std():.4f}, "
+                             f"norm={np.linalg.norm(feature.cpu().numpy()[0]):.4f}")
 
             # 計算平均特徵
             mean_feature = np.mean(features, axis=0)
@@ -225,7 +318,13 @@ class ModelManager:
                 features_dict[action_name] = feature.tolist()
 
             rospy.set_param('/model_manager/support_features', features_dict)
-            rospy.loginfo(f"Updated ROS params: {len(self.action_list)} custom actions")
+
+            # 儲存目前使用的模型名稱（讓 recognition_display_node 使用相同模型）
+            if self.current_model_name:
+                rospy.set_param('/model_manager/current_model', self.current_model_name)
+                rospy.loginfo(f"Updated ROS params: {len(self.action_list)} custom actions, model={self.current_model_name}")
+            else:
+                rospy.loginfo(f"Updated ROS params: {len(self.action_list)} custom actions")
 
         except Exception as e:
             rospy.logerr(f"Failed to update ROS params: {e}")

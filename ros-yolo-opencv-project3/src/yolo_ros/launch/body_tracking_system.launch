@@ -1,0 +1,92 @@
+<launch>
+    <!--
+    Body Tracking System Launch File
+    Launches:
+    - RealSense D435i camera
+    - Arduino stepper motor control (rosserial)
+    - Extended camera tracker node (with patrol mode)
+    - Qt5 Body Tracking GUI
+    -->
+
+    <!-- ============== Arguments ============== -->
+
+    <!-- Arduino Serial Port -->
+    <arg name="arduino_port" default="/dev/ttyACM0" />
+    <arg name="arduino_baud" default="57600" />
+
+    <!-- Tracking Parameters -->
+    <arg name="center_deadzone" default="50" />
+    <arg name="max_steps_per_update" default="40" />
+    <arg name="pixels_per_step" default="2.5" />
+
+    <!-- PID Parameters - reduced for smoother tracking -->
+    <arg name="pid_kp" default="1.5" />
+    <arg name="pid_ki" default="0.1" />
+    <arg name="pid_kd" default="0.05" />
+
+    <!-- Patrol Parameters -->
+    <arg name="patrol_speed" default="36.0" />
+    <arg name="steps_per_revolution" default="1600" />
+    <arg name="no_person_timeout" default="3.0" />
+    <arg name="person_confirm_timeout" default="1.0" />
+
+    <!-- YOLO Model Path -->
+    <arg name="model_path" default="yolov8n.pt" />
+
+    <!-- GUI Options -->
+    <arg name="launch_gui" default="true" />
+    <arg name="launch_viewer" default="false" />
+
+    <!-- ============== Nodes ============== -->
+
+    <!-- RealSense D435i Camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true" />
+        <arg name="enable_pointcloud" value="false" />
+    </include>
+
+    <!-- Arduino Stepper Control (rosserial) -->
+    <node pkg="rosserial_python" type="serial_node.py" name="arduino_stepper_serial" output="screen">
+        <param name="port" value="$(arg arduino_port)" />
+        <param name="baud" value="$(arg arduino_baud)" />
+    </node>
+
+    <!-- Camera Tracker Node (Extended Version) -->
+    <node pkg="yolo_ros" type="camera_tracker_node.py" name="camera_tracker_node" output="screen">
+        <!-- Tracking parameters -->
+        <param name="center_deadzone" value="$(arg center_deadzone)" />
+        <param name="max_steps_per_update" value="$(arg max_steps_per_update)" />
+        <param name="pixels_per_step" value="$(arg pixels_per_step)" />
+
+        <!-- PID parameters -->
+        <param name="pid_kp" value="$(arg pid_kp)" />
+        <param name="pid_ki" value="$(arg pid_ki)" />
+        <param name="pid_kd" value="$(arg pid_kd)" />
+
+        <!-- Patrol parameters -->
+        <param name="patrol_speed" value="$(arg patrol_speed)" />
+        <param name="steps_per_revolution" value="$(arg steps_per_revolution)" />
+        <param name="no_person_timeout" value="$(arg no_person_timeout)" />
+        <param name="person_confirm_timeout" value="$(arg person_confirm_timeout)" />
+
+        <!-- YOLO model -->
+        <param name="model_path" value="$(arg model_path)" />
+    </node>
+
+    <!-- Qt5 Body Tracking GUI (optional) -->
+    <node if="$(arg launch_gui)"
+          pkg="yolo_ros"
+          type="body_tracking_gui.py"
+          name="body_tracking_gui"
+          output="screen" />
+
+    <!-- Image Viewer (optional - for debugging) -->
+    <node if="$(arg launch_viewer)"
+          pkg="image_view"
+          type="image_view"
+          name="tracking_viewer"
+          output="screen">
+        <remap from="image" to="/tracking_annotated_image" />
+    </node>
+
+</launch>

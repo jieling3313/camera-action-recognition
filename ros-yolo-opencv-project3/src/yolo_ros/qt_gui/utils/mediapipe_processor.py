@@ -12,6 +12,19 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import rospy
+import sys
+import os
+
+# 添加 mediapipe_compat 路徑
+common_path = "/root/catkin_ws/src/yolo_ros/scripts/models/common"
+if common_path not in sys.path:
+    sys.path.insert(0, common_path)
+
+# 啟用 MediaPipe 兼容層（為新版 MediaPipe 0.10.x+ 提供 mp.solutions API）
+try:
+    import mediapipe_compat
+except ImportError as e:
+    rospy.logwarn(f"mediapipe_compat not found: {e}")
 
 
 class MediaPipeProcessor:

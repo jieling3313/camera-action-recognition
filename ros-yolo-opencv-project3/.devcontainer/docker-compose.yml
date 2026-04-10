@@ -22,7 +22,8 @@ services:
       - /etc/udev/rules.d:/etc/udev/rules.d
       # - /dev/bus/usb:/dev/bus/usb
       - /dev:/dev
-
+      # 新增：掛載外接硬碟 (使用固定的符號連結，不受硬碟名稱變動影響)
+      # - /mnt/external_hdd:/media/jieling/Expansion:ro
     # GPU 支援
     deploy:
       resources:

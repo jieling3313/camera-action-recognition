@@ -199,7 +199,7 @@ class Page1DataCollection(QWidget):
                 env['DISPLAY'] = os.environ.get('DISPLAY', ':0')
 
             # 啟動 camera_display_node（處理影像，不顯示）
-            node_script = "/root/catkin_ws/src/yolo_ros/scripts/camera_display_node.py"
+            node_script = "/root/catkin_ws/src/yolo_ros/scripts/ros_nodes/camera_display_node.py"
             if not os.path.exists(node_script):
                 QMessageBox.critical(
                     self, "Error",

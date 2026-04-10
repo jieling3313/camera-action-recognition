@@ -33,5 +33,9 @@ git-workflow-visualization.png
 # Temporary files
 123.txt
 
-# Papers (optional - 取消註解如果不想上傳論文)
-# *.pdf
+# Papers
+*.pdf
+
+# other .md
+NESSSE.md
+paper_method_section.md

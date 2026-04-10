@@ -17,6 +17,7 @@ import rospy
 from pages.page1_data_collection import Page1DataCollection
 from pages.page2_model_management import Page2ModelManagement
 from pages.page3_recognition import Page3Recognition
+from pages.page4_body_tracking import Page4BodyTracking
 
 
 class MainWindow(QMainWindow):
@@ -47,14 +48,16 @@ class MainWindow(QMainWindow):
         # 堆疊視窗（三個頁面）
         self.stacked_widget = QStackedWidget()
 
-        # 建立三個頁面
+        # 建立四個頁面
         self.page1 = Page1DataCollection()
         self.page2 = Page2ModelManagement()
         self.page3 = Page3Recognition()
+        self.page4 = Page4BodyTracking()
 
         self.stacked_widget.addWidget(self.page1)
         self.stacked_widget.addWidget(self.page2)
         self.stacked_widget.addWidget(self.page3)
+        self.stacked_widget.addWidget(self.page4)
 
         main_layout.addWidget(self.stacked_widget)
 
@@ -82,6 +85,7 @@ class MainWindow(QMainWindow):
         self.btn_page1 = QPushButton("Data Collection")
         self.btn_page2 = QPushButton("Model Management")
         self.btn_page3 = QPushButton("Live Recognition")
+        self.btn_page4 = QPushButton("Body Tracking")
 
         # 設定按鈕樣式
         button_style = """
@@ -89,8 +93,9 @@ class MainWindow(QMainWindow):
                 background-color: #3498db;
                 color: white;
                 border: none;
-                padding: 10px 20px;
-                font-size: 14px;
+                padding: 15px 30px;
+                font-size: 18px;
+                font-weight: bold;
                 border-radius: 5px;
             }
             QPushButton:hover {
@@ -104,7 +109,7 @@ class MainWindow(QMainWindow):
             }
         """
 
-        for btn in [self.btn_page1, self.btn_page2, self.btn_page3]:
+        for btn in [self.btn_page1, self.btn_page2, self.btn_page3, self.btn_page4]:
             btn.setCheckable(True)
             btn.setStyleSheet(button_style)
             button_layout.addWidget(btn)
@@ -116,6 +121,7 @@ class MainWindow(QMainWindow):
         self.btn_page1.clicked.connect(lambda: self._switch_page(0))
         self.btn_page2.clicked.connect(lambda: self._switch_page(1))
         self.btn_page3.clicked.connect(lambda: self._switch_page(2))
+        self.btn_page4.clicked.connect(lambda: self._switch_page(3))
 
         layout.addLayout(button_layout)
 
@@ -174,6 +180,7 @@ class MainWindow(QMainWindow):
         self.btn_page1.setChecked(index == 0)
         self.btn_page2.setChecked(index == 1)
         self.btn_page3.setChecked(index == 2)
+        self.btn_page4.setChecked(index == 3)
 
         rospy.loginfo(f"Switched to page {index + 1}")
 
@@ -183,10 +190,12 @@ class MainWindow(QMainWindow):
         self.stop_signal.connect(self.page1.on_stop)
         self.stop_signal.connect(self.page2.on_stop)
         self.stop_signal.connect(self.page3.on_stop)
+        self.stop_signal.connect(self.page4.on_stop)
 
         self.init_signal.connect(self.page1.on_initial)
         self.init_signal.connect(self.page2.on_initial)
         self.init_signal.connect(self.page3.on_initial)
+        self.init_signal.connect(self.page4.on_initial)
 
     def _on_stop(self):
         """STOP 按鈕點擊事件"""

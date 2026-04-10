@@ -182,14 +182,48 @@ class Page3Recognition(QWidget):
         layout.addStretch()
 
     def start_recognition(self):
-        """啟動辨識節點"""
+        """啟動辨識節點
+
+        注意：如果已經由 roslaunch 啟動了 recognition_display_node_v2，
+        則直接使用現有節點，不啟動新進程。
+        這樣可以保留 Page 2 設定的觸發動作等設定。
+        """
+        # 檢查是否已經有 recognition_display_node 在運行
+        try:
+            # 嘗試呼叫 load_actions 服務來檢查節點是否存在
+            rospy.wait_for_service('/recognition_display/load_actions', timeout=1.0)
+
+            # 節點已存在，直接使用
+            self.btn_start_recognition.setEnabled(False)
+            self.btn_stop_recognition.setEnabled(True)
+            self.status_label.setText("Status: Recognition Running (Using existing node)")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    padding: 10px;
+                    background-color: #4CAF50;
+                    color: white;
+                    border-radius: 5px;
+                    margin: 10px;
+                }
+            """)
+
+            # 載入動作（確保使用最新設定）
+            self.load_actions()
+
+            rospy.loginfo("Using existing recognition_display_node_v2 (preserves trigger settings)")
+            return
+
+        except rospy.ROSException:
+            # 節點不存在，需要啟動
+            pass
+
         if self.recognition_node_process is not None:
             QMessageBox.warning(self, "Warning", "Recognition is already running")
             return
 
         try:
             # 啟動 recognition_display_node_v2（支援雙模式辨識）
-            node_script = "/root/catkin_ws/src/yolo_ros/scripts/recognition_display_node_v2.py"
+            node_script = "/root/catkin_ws/src/yolo_ros/scripts/ros_nodes/recognition_display_node_v2.py"
 
             if not os.path.exists(node_script):
                 QMessageBox.critical(
@@ -207,7 +241,7 @@ class Page3Recognition(QWidget):
 
             self.btn_start_recognition.setEnabled(False)
             self.btn_stop_recognition.setEnabled(True)
-            self.status_label.setText("Status: Recognition Running (Check ROS window)")
+            self.status_label.setText("Status: Recognition Running (New node started)")
             self.status_label.setStyleSheet("""
                 QLabel {
                     padding: 10px;
@@ -218,38 +252,42 @@ class Page3Recognition(QWidget):
                 }
             """)
 
-            rospy.loginfo("Recognition display node started")
+            rospy.loginfo("Recognition display node started (new process)")
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to start recognition: {e}")
             rospy.logerr(f"Failed to start recognition display node: {e}")
 
     def stop_recognition(self):
-        """停止辨識節點"""
-        if self.recognition_node_process is None:
-            return
+        """停止辨識節點
 
-        try:
-            self.recognition_node_process.terminate()
-            self.recognition_node_process.wait(timeout=5)
-            self.recognition_node_process = None
+        注意：如果使用的是 roslaunch 啟動的節點，則不終止它，
+        只是切換 UI 狀態。
+        """
+        # 更新 UI 狀態
+        self.btn_start_recognition.setEnabled(True)
+        self.btn_stop_recognition.setEnabled(False)
+        self.status_label.setText("Status: Recognition Stopped")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                padding: 10px;
+                background-color: #f0f0f0;
+                border-radius: 5px;
+                margin: 10px;
+            }
+        """)
 
-            self.btn_start_recognition.setEnabled(True)
-            self.btn_stop_recognition.setEnabled(False)
-            self.status_label.setText("Status: Recognition Stopped")
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    padding: 10px;
-                    background-color: #f0f0f0;
-                    border-radius: 5px;
-                    margin: 10px;
-                }
-            """)
-
-            rospy.loginfo("Recognition display node stopped")
-
-        except Exception as e:
-            QMessageBox.warning(self, "Warning", f"Error stopping recognition: {e}")
+        # 只有當我們自己啟動的進程時才終止它
+        if self.recognition_node_process is not None:
+            try:
+                self.recognition_node_process.terminate()
+                self.recognition_node_process.wait(timeout=5)
+                self.recognition_node_process = None
+                rospy.loginfo("Recognition display node stopped (process terminated)")
+            except Exception as e:
+                QMessageBox.warning(self, "Warning", f"Error stopping recognition: {e}")
+        else:
+            rospy.loginfo("Recognition UI stopped (roslaunch node still running)")
 
     def load_actions(self):
         """載入動作集"""

@@ -1,0 +1,16 @@
+{
+  "data_path": "/media/jieling/Expansion/NTU RGB+D/nturgb+d_rgb_mediapipe/mediapipe_skeletons",
+  "benchmark": "xsub",
+  "num_classes": 60,
+  "max_frames": 64,
+  "base_channels": 64,
+  "batch_size": 32,
+  "epochs": 500,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "num_workers": 4,
+  "augment": false,
+  "save_dir": "checkpoints_mediapipe33",
+  "resume": "checkpoints_mediapipe33/latest.pth",
+  "device": "cuda"
+}
