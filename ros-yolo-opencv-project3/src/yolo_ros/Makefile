@@ -6,6 +6,8 @@
 #
 # Location: /root/catkin_ws/Makefile or /root/catkin_ws/src/yolo_ros/Makefile
 # Quick start: make help
+#
+# Tab Completion: 在 bash 中輸入 make <TAB><TAB> 即可看到所有可用指令
 # ============================================================================
 
 # Force bash shell (needed for 'source' command)
@@ -15,7 +17,7 @@ SHELL := /bin/bash
 ROS_WS := /root/catkin_ws
 SRC_DIR := $(ROS_WS)/src/yolo_ros
 SCRIPTS_DIR := $(SRC_DIR)/scripts
-ACTIONSET_DIR := $(SCRIPTS_DIR)/actionset
+ACTIONSET_DIR := $(SRC_DIR)/actionset
 CHECKPOINTS_DIR := $(SCRIPTS_DIR)/checkpoints
 
 # ROS environment
@@ -30,7 +32,21 @@ CYAN := \033[0;36m
 MAGENTA := \033[0;35m
 NC := \033[0m
 
+# ============================================================================
+# ALL TARGETS (for tab completion - 按字母排序)
+# ============================================================================
 .PHONY: help
+.PHONY: build check-params check-services clean-actionset clean-build clean-logs
+.PHONY: convert-format
+.PHONY: guide-body-tracking guide-manage guide-recognize guide-record guide-train
+.PHONY: inspect-model
+.PHONY: kill-ros
+.PHONY: list-actions list-models list-targets
+.PHONY: monitor-camera monitor-gpu monitor-recognition monitor-tracking
+.PHONY: start-body-tracking start-camera start-gui start-gui-full start-gui-system start-roscore start-tracker-only
+.PHONY: test-camera test-gpu test-motor test-nodes test-system test-topics
+.PHONY: train-mediapipe33 train-mediapipe33-fast train-mediapipe33-resume train-ntu train-ntu-fast train-ntu-resume
+.PHONY: watch-topics
 
 # ============================================================================
 # HELP
@@ -39,7 +55,7 @@ NC := \033[0m
 help:
 	@echo -e "$(BLUE)======================================================================$(NC)"
 	@echo -e "$(GREEN)  One-Shot Action Recognition - ROS Makefile$(NC)"
-	@echo -e "$(CYAN)  ROS operations$(NC)"
+	@echo -e "$(CYAN)  輸入 make <TAB><TAB> 可列出所有指令$(NC)"
 	@echo -e "$(BLUE)======================================================================$(NC)"
 	@echo -e ""
 	@echo -e "$(YELLOW)  系統啟動$(NC)"
@@ -84,6 +100,7 @@ help:
 	@echo -e "  $(GREEN)make check-params$(NC)         - 顯示 ROS parameters"
 	@echo -e "  $(GREEN)make check-services$(NC)       - 列出所有 ROS services"
 	@echo -e "  $(GREEN)make kill-ros$(NC)             - 停止所有 ROS 進程"
+	@echo -e "  $(GREEN)make list-targets$(NC)         - 列出所有 make 目標"
 	@echo -e ""
 	@echo -e "$(YELLOW)  資料管理$(NC)"
 	@echo -e "  $(GREEN)make list-actions$(NC)         - 列出所有已錄製動作"
@@ -95,24 +112,48 @@ help:
 	@echo -e "  $(GREEN)make guide-record$(NC)         - Page 1: 錄製動作流程"
 	@echo -e "  $(GREEN)make guide-manage$(NC)         - Page 2: 管理動作流程"
 	@echo -e "  $(GREEN)make guide-recognize$(NC)      - Page 3: 辨識流程"
+	@echo -e "  $(GREEN)make guide-body-tracking$(NC)  - Page 4: 馬達追蹤流程"
 	@echo -e "  $(GREEN)make guide-train$(NC)          - 訓練模型流程"
 	@echo -e ""
 	@echo -e "$(BLUE)======================================================================$(NC)"
-	@echo -e "  完整啟動:"
-	@echo -e "    $(YELLOW)make start-gui-system$(NC)"
+	@echo -e "  快速開始:"
+	@echo -e "    $(YELLOW)make start-gui-system$(NC)     # 無馬達追蹤"
+	@echo -e "    $(YELLOW)make start-gui-full$(NC)       # 有馬達追蹤"
 	@echo -e ""
-	@echo -e "  測試系統:"
-	@echo -e "    $(YELLOW)make test-camera && make test-system$(NC)"
-	@echo -e ""
-	@echo -e "  監控運行:"
-	@echo -e "    $(YELLOW)make monitor-recognition$(NC)  # 一個終端"
-	@echo -e "    $(YELLOW)make monitor-gpu$(NC)           # 另一個終端"
+	@echo -e "  Tab 補全:"
+	@echo -e "    輸入 $(CYAN)make st<TAB>$(NC) 會補全為 start-* 相關指令"
+	@echo -e "    輸入 $(CYAN)make test-<TAB>$(NC) 會列出所有測試指令"
 	@echo -e ""
 	@echo -e "$(BLUE)======================================================================$(NC)"
 
+# 列出所有可用目標（用於檢查）
+list-targets:
+	@echo -e "$(CYAN)所有可用的 make 目標:$(NC)"
+	@echo -e ""
+	@echo -e "$(YELLOW)系統啟動:$(NC)"
+	@echo "  start-body-tracking start-camera start-gui start-gui-full start-gui-system start-roscore start-tracker-only"
+	@echo -e ""
+	@echo -e "$(YELLOW)測試:$(NC)"
+	@echo "  test-camera test-gpu test-motor test-nodes test-system test-topics"
+	@echo -e ""
+	@echo -e "$(YELLOW)監控:$(NC)"
+	@echo "  monitor-camera monitor-gpu monitor-recognition monitor-tracking watch-topics"
+	@echo -e ""
+	@echo -e "$(YELLOW)訓練:$(NC)"
+	@echo "  train-mediapipe33 train-mediapipe33-fast train-mediapipe33-resume train-ntu train-ntu-fast train-ntu-resume"
+	@echo -e ""
+	@echo -e "$(YELLOW)開發:$(NC)"
+	@echo "  build check-params check-services clean-actionset clean-build clean-logs convert-format inspect-model kill-ros"
+	@echo -e ""
+	@echo -e "$(YELLOW)資料:$(NC)"
+	@echo "  list-actions list-models list-targets"
+	@echo -e ""
+	@echo -e "$(YELLOW)指引:$(NC)"
+	@echo "  guide-body-tracking guide-manage guide-recognize guide-record guide-train"
 
+# ============================================================================
 # 系統啟動
-.PHONY: start-gui-system start-gui-full start-gui start-camera start-camera start-roscore
+# ============================================================================
 
 start-gui-system:
 	@echo -e "$(YELLOW)啟動完整 GUI 系統 (4 頁面)...$(NC)"
@@ -144,8 +185,9 @@ start-roscore:
 	@echo -e "$(YELLOW)啟動 ROS Master...$(NC)"
 	@$(ROS_SETUP) && roscore
 
+# ============================================================================
 # 測試與驗證
-.PHONY: test-camera test-system test-gpu test-topics test-nodes
+# ============================================================================
 
 test-camera:
 	@echo -e "$(YELLOW)測試相機連接...$(NC)"
@@ -183,8 +225,9 @@ test-nodes:
 	@echo -e "$(CYAN)所有 ROS Nodes:$(NC)"
 	@$(ROS_SETUP) && rosnode list
 
+# ============================================================================
 # 監控
-.PHONY: monitor-camera monitor-recognition monitor-gpu watch-topics
+# ============================================================================
 
 monitor-camera:
 	@echo -e "$(YELLOW)監控相機 FPS ...$(NC)"
@@ -207,9 +250,14 @@ watch-topics:
 		sleep 2; \
 	done
 
+# ============================================================================
 # 模型訓練
-.PHONY: train-ntu train-ntu-fast train-ntu-resume inspect-model convert-format
-.PHONY: train-mediapipe33 train-mediapipe33-fast train-mediapipe33-resume
+# ============================================================================
+
+# MediaPipe 33 點訓練 (使用外接硬碟資料集)
+MEDIAPIPE33_DIR := $(SCRIPTS_DIR)/models/mediapipe33
+MEDIAPIPE33_DATA := /media/jieling/Expansion/NTU RGB+D/nturgb+d_rgb_mediapipe/mediapipe_skeletons
+MEDIAPIPE33_CHECKPOINTS := $(MEDIAPIPE33_DIR)/checkpoints_mediapipe33
 
 train-ntu:
 	@echo -e "$(YELLOW)開始訓練 NTU RGB+D 模型...$(NC)"
@@ -249,11 +297,6 @@ train-ntu-resume:
 		--device cuda \
 		--num_workers 4 \
 		--resume $(CHECKPOINTS_DIR)/latest.pth
-
-# MediaPipe 33 點訓練 (使用外接硬碟資料集)
-MEDIAPIPE33_DIR := $(SCRIPTS_DIR)/models/mediapipe33
-MEDIAPIPE33_DATA := /media/jieling/Expansion/NTU RGB+D/nturgb+d_rgb_mediapipe/mediapipe_skeletons
-MEDIAPIPE33_CHECKPOINTS := $(MEDIAPIPE33_DIR)/checkpoints_mediapipe33
 
 train-mediapipe33:
 	@echo -e "$(YELLOW)開始訓練 MediaPipe 33 點模型...$(NC)"
@@ -298,8 +341,9 @@ convert-format:
 	@echo -e "$(YELLOW)轉換 MediaPipe 33 → COCO 17...$(NC)"
 	@cd $(SCRIPTS_DIR) && python3.10 convert_mediapipe_to_coco.py
 
+# ============================================================================
 # 開發與除錯
-.PHONY: build clean-build check-params check-services kill-ros
+# ============================================================================
 
 build:
 	@echo -e "$(YELLOW)編譯 ROS workspace...$(NC)"
@@ -326,8 +370,9 @@ kill-ros:
 	@pkill -9 -f "roscore|roslaunch|rosrun|rosnode" 2>/dev/null || true
 	@echo -e "$(GREEN)  已停止$(NC)"
 
+# ============================================================================
 # 資料管理
-.PHONY: list-actions list-models clean-logs clean-actionset
+# ============================================================================
 
 list-actions:
 	@echo -e "$(CYAN)已錄製的動作:$(NC)"
@@ -353,8 +398,9 @@ clean-actionset:
 		echo "$(YELLOW)已取消$(NC)"; \
 	fi
 
+# ============================================================================
 # 操作流程指引
-.PHONY: guide-record guide-manage guide-recognize guide-train
+# ============================================================================
 
 guide-record:
 	@echo -e "$(BLUE)======================================================================$(NC)"
@@ -431,8 +477,6 @@ guide-train:
 # 馬達人體追蹤
 # ============================================================================
 
-.PHONY: start-body-tracking start-tracker-only test-motor monitor-tracking guide-body-tracking
-
 # Arduino 設定
 ARDUINO_PORT := /dev/ttyACM0
 ARDUINO_BAUD := 57600
@@ -468,29 +512,36 @@ test-motor:
 
 monitor-tracking:
 	@echo -e "$(YELLOW)監控追蹤狀態...$(NC)"
-	@$(ROS_SETUP) && rostopic echo /tracking_status
+	@$(ROS_SETUP) && rostopic echo /body_tracking_status
 
 guide-body-tracking:
 	@echo -e "$(BLUE)======================================================================$(NC)"
-	@echo -e "$(GREEN)  馬達人體追蹤系統操作指南$(NC)"
+	@echo -e "$(GREEN)  Page 4 - 馬達人體追蹤系統操作指南$(NC)"
 	@echo -e "$(BLUE)======================================================================$(NC)"
 	@echo -e ""
 	@echo -e "$(YELLOW)功能說明:$(NC)"
 	@echo -e "  - YOLO 偵測人體並用馬達追蹤"
 	@echo -e "  - 支援最大人體追蹤模式"
 	@echo -e "  - 支援巡航模式 (36度/秒)"
+	@echo -e "  - 同時進行動作辨識"
 	@echo -e ""
 	@echo -e "$(YELLOW)啟動步驟:$(NC)"
 	@echo -e "  1. 確認 Arduino 連接: $(GREEN)make test-motor$(NC)"
-	@echo -e "  2. 啟動完整系統: $(GREEN)make start-body-tracking$(NC)"
+	@echo -e "  2. 啟動完整系統: $(GREEN)make start-gui-full$(NC)"
 	@echo -e ""
-	@echo -e "$(YELLOW)GUI 功能:$(NC)"
-	@echo -e "  - [Body Tracking] 開啟/關閉人體追蹤"
-	@echo -e "  - [Track Largest] 追蹤最大人體"
-	@echo -e "  - [Patrol Mode]  啟動巡航模式"
+	@echo -e "$(YELLOW)Page 4 功能:$(NC)"
+	@echo -e "  - [Start Tracking] 開啟人體追蹤"
+	@echo -e "  - [Stop Tracking]  關閉人體追蹤"
+	@echo -e "  - [Start Patrol]   啟動巡航模式"
+	@echo -e "  - [Track Largest]  追蹤最大人體"
+	@echo -e "  - [Home]           馬達歸位"
+	@echo -e ""
+	@echo -e "$(YELLOW)CPU 優化:$(NC)"
+	@echo -e "  - YOLO 每 3 幀偵測一次 (降低 GPU 負載)"
+	@echo -e "  - MediaPipe 骨架數據共享 (減少重複處理)"
 	@echo -e ""
 	@echo -e "$(YELLOW)ROS Topics:$(NC)"
 	@echo -e "  - /tracking_annotated_image  追蹤畫面"
-	@echo -e "  - /tracking_status           追蹤狀態"
-	@echo -e "  - /stepper_command           馬達指令"
+	@echo -e "  - /body_tracking_status      追蹤狀態"
+	@echo -e "  - /camera/skeleton_keypoints 共享骨架數據"
 	@echo -e ""
